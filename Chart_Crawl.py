@@ -72,7 +72,10 @@ try:
     time.sleep(0.5)
     
     # 6. 연도 선택 (2025년)
-    driver.find_element(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[2]/div[1]/ul/li[1]/span/label').click()
+    # driver.find_element(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[2]/div[1]/ul/li[1]/span/label').click()
+    # time.sleep(0.5)
+    #2024년
+    driver.find_element(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[2]/div[1]/ul/li[2]/span/label').click()
     time.sleep(0.5)
 
     # 7. 월별 루프 (1월 ~ 12월)
@@ -124,8 +127,8 @@ try:
         df = pd.DataFrame(all_chart_data)
         # 중복 데이터 제거 (주차, 순위, 곡명이 모두 일치하는 경우 하나만 남김)
         df = df.drop_duplicates(subset=['주차', '순위', '곡명'], keep='first')
-        df.to_csv("melon_weekly_2025_full.csv", index=False, encoding="utf-8-sig")
-        print(f"\n총 {len(df)}건의 데이터를 'melon_weekly_2025_full.csv'로 저장했습니다.")
+        df.to_csv("melon_weekly_2024_full.csv", index=False, encoding="utf-8-sig")
+        print(f"\n총 {len(df)}건의 데이터를 'melon_weekly_2024_full.csv'로 저장했습니다.")
          
     else:
         print("수집된 데이터가 없습니다.")
