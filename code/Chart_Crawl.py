@@ -5,6 +5,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+# -----------------------------
+# 브라우저 설정
+# -----------------------------
 options = uc.ChromeOptions()
 options.add_argument('--lang=ko_KR')
 options.add_argument('--window-size=1920,1080')
@@ -14,23 +17,11 @@ wait = WebDriverWait(driver, 15)
 
 all_chart_data = []
 
-# ✅ 곡 추출 함수
-def extract_songs(current_week_text, year):
-    try:
-        start_str, end_str = current_week_text.split(" ~ ")
+# -----------------------------
+# 곡 추출 함수
+# -----------------------------
+def extract_songs(week_text, year):
 
-        # 🔥 연도 없는 경우 보완
-        if len(start_str) <= 5:  # 예: 01.06
-            start_str = f"{year}.{start_str}"
-            end_str = f"{year}.{end_str}"
-
-        start_date = pd.to_datetime(start_str.strip())
-        end_date = pd.to_datetime(end_str.strip())
-
-    except:
-        start_date, end_date = None, None
-
-    # ✅ 1~100위 한 번에 가져오기
     rows = driver.find_elements(By.CSS_SELECTOR, '#lst50, #lst100')
 
     for row in rows:
@@ -39,24 +30,21 @@ def extract_songs(current_week_text, year):
             title = row.find_element(By.CSS_SELECTOR, ".rank01 a").text
             artist = row.find_element(By.CSS_SELECTOR, ".rank02 a").text
             album = row.find_element(By.CSS_SELECTOR, ".rank03 a").text
-            img_url = row.find_element(By.CSS_SELECTOR, "td div a img").get_attribute("src")
+            like_cnt = row.find_element(By.CSS_SELECTOR, ".cnt").text
+            like_cnt = like_cnt.replace("총건수", "").replace(",", "").strip()
+            like_cnt = int(like_cnt)
 
-            try:
-                like_cnt = row.find_element(By.CSS_SELECTOR, ".cnt").text.replace("총건수", "").replace(",", "").strip()
-            except:
-                like_cnt = "0"
+            if not rank or not title:
+                continue
 
             all_chart_data.append({
-                "연도": year,
-                "시작일": start_date,
-                "종료일": end_date,
-                "주차": current_week_text,
-                "순위": rank,
-                "곡명": title,
-                "아티스트": artist,
-                "앨범": album,
-                "좋아요": like_cnt,
-                "이미지URL": img_url
+                "year": year,
+                "week": week_text,
+                "rank": int(rank),
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "like_cnt" : like_cnt
             })
 
         except:
@@ -64,84 +52,133 @@ def extract_songs(current_week_text, year):
 
 
 try:
+    # -----------------------------
+    # 1. 멜론 홈 진입 (필수)
+    # -----------------------------
     driver.get("https://www.melon.com")
     time.sleep(2)
 
-    wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "멜론차트"))).click()
-    time.sleep(0.5)
+    # 멜론차트 클릭
+    wait.until(EC.element_to_be_clickable(
+        (By.LINK_TEXT, "멜론차트"))
+    ).click()
+    time.sleep(1)
 
-    wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="gnb_menu"]/ul[1]/li[1]/div/div/button/span'))).click()
-    time.sleep(0.5)
+    # 상세검색 열기
+    wait.until(EC.element_to_be_clickable(
+        (By.XPATH, '//*[@id="gnb_menu"]/ul[1]/li[1]/div/div/button/span'))
+    ).click()
+    time.sleep(1)
 
-    wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="d_chart_search"]/div/h4[1]/a'))).click()
-    time.sleep(0.5)
+    wait.until(EC.element_to_be_clickable(
+        (By.XPATH, '//*[@id="d_chart_search"]/div/h4[1]/a'))
+    ).click()
+    time.sleep(1)
 
+    # -----------------------------
     # 연대 선택
-    driver.find_element(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[1]/div[1]/ul/li[1]/span/label').click()
-    time.sleep(0.5)
+    # -----------------------------
+    wait.until(EC.element_to_be_clickable(
+        (By.XPATH, '//*[@id="d_chart_search"]/div/div/div[1]/div[1]/ul/li[1]/span/label'))
+    ).click()
 
-    # 연도 선택
-    year_list = ['2025', '2024']
+    year_list = ['2020','2021','2022','2023','2024','2025']
 
     for year in year_list:
         print(f"\n===== {year} 시작 =====")
 
+        # 연도 선택
         year_selector = f'input[name="year"][value="{year}"]'
-        year_element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, year_selector)))
-        driver.execute_script("arguments[0].click();", year_element)
+        driver.execute_script(
+            "arguments[0].click();",
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, year_selector)))
+        )
         time.sleep(1)
 
         for month in range(1, 13):
             try:
                 month_xpath = f'//*[@id="d_chart_search"]/div/div/div[3]/div[1]/ul/li[{month}]/span/label'
-                driver.find_element(By.XPATH, month_xpath).click()
-                time.sleep(1)
+                driver.execute_script(
+                    "arguments[0].click();",
+                    wait.until(EC.element_to_be_clickable((By.XPATH, month_xpath)))
+                )
+                time.sleep(0.5)
             except:
-                break
+                continue
 
-            # ✅ 매달마다 주차 다시 가져오기
             weeks = driver.find_elements(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[4]/div[1]/ul/li')
 
-            for w_idx in range(1, len(weeks) + 1):
-                try:
-                    week_xpath = f'//*[@id="d_chart_search"]/div/div/div[4]/div[1]/ul/li[{w_idx}]/span/label'
-                    week_element = driver.find_element(By.XPATH, week_xpath)
+            for w_idx in range(1, len(weeks)+1):
 
-                    week_text = week_element.text
-                    week_element.click()
-                    time.sleep(1)
+                retry = 0
+                success = False
 
-                    # 주간 차트 선택
-                    driver.find_element(By.XPATH, '//*[@id="d_chart_search"]/div/div/div[5]/div[1]/ul/li[2]/span/label').click()
+                while retry < 2 and not success:
+                    try:
+                        week_xpath = f'//*[@id="d_chart_search"]/div/div/div[4]/div[1]/ul/li[{w_idx}]/span/label'
 
-                    # 검색 버튼
-                    driver.find_element(By.XPATH, '//*[@id="d_srch_form"]/div[2]/button/span/span').click()
-                    time.sleep(1)
+                        week_element = wait.until(EC.element_to_be_clickable((By.XPATH, week_xpath)))
+                        week_text = week_element.text
 
-                    # ✅ 핵심: 한 번만 호출 (중복 제거)
-                    extract_songs(week_text, year)
+                        driver.execute_script("arguments[0].click();", week_element)
 
-                    print(f"✅ {week_text} 완료 / 누적 {len(all_chart_data)}")
+                        # 주간차트 선택
+                        driver.execute_script("arguments[0].click();",
+                            wait.until(EC.element_to_be_clickable(
+                                (By.XPATH, '//*[@id="d_chart_search"]/div/div/div[5]/div[1]/ul/li[2]/span/label')
+                            ))
+                        )
 
-                except Exception as e:
-                    print(f"주차 오류: {e}")
-                    continue
+                        # 검색
+                        driver.execute_script("arguments[0].click();",
+                            wait.until(EC.element_to_be_clickable(
+                                (By.XPATH, '//*[@id="d_srch_form"]/div[2]/button/span/span')
+                            ))
+                        )
 
-    # ✅ 데이터프레임 생성
-    if all_chart_data:
-        df = pd.DataFrame(all_chart_data)
+                        time.sleep(1.5)
 
-        # 🔥 중복 제거 (안전장치)
-        df = df.drop_duplicates(subset=['연도', '주차', '순위', '곡명'])
+                        # 1~50위
+                        extract_songs(week_text, year)
 
-        df.to_csv("melon_2024_2025.csv", index=False, encoding="utf-8-sig")
-        print("저장 완료")
+                        # 51~100위
+                        driver.execute_script("movePage(2);")
+                        time.sleep(1.5)
 
-    else:
-        print("데이터 없음")
+                        extract_songs(week_text, year)
 
-except Exception as e:
-    print(f"⚠️ 오류: {e}")
+                        print(f"✅ {year} {week_text} 완료 / 누적 {len(all_chart_data)}")
+
+                        success = True
+
+                    except Exception as e:
+                        retry += 1
+                        print(f"⚠️ 재시도 ({retry})")
+                        time.sleep(1)
+
+                if not success:
+                    print(f"❌ 주차 스킵")
+        # -----------------------------
+        # ✅ 연도별 저장
+        # -----------------------------
+        df_year = pd.DataFrame(all_chart_data)
+        df_year = df_year[df_year['year'] == year]
+
+        df_year = df_year.dropna(subset=['rank','title'])
+        df_year = df_year.drop_duplicates(subset=['year','week','rank'])
+
+        df_year.to_csv(f"/Users/js/MMA/Melon_Music_Award/data/melon_{year}.csv", index=False, encoding='utf-8-sig')
+        print(f"🎉 {year} 저장 완료")
+
+    # -----------------------------
+    # 전체 저장
+    # -----------------------------
+    df_all = pd.DataFrame(all_chart_data)
+    df_all = df_all.dropna(subset=['rank','title'])
+    df_all = df_all.drop_duplicates(subset=['year','week','rank'])
+
+    df_all.to_csv("/Users/js/MMA/Melon_Music_Award/data/melon_all_2020_2025.csv", index=False, encoding='utf-8-sig')
+    print("🔥 전체 데이터 저장 완료")
 
 finally:
     driver.quit()
