@@ -20,9 +20,14 @@ all_chart_data = []
 # -----------------------------
 # 곡 추출 함수
 # -----------------------------
+
 def extract_songs(week_text, year):
 
     rows = driver.find_elements(By.CSS_SELECTOR, '#lst50, #lst100')
+    week_range = week_text.split("~")
+
+    week_start = week_range[0].strip()
+    week_end = week_range[1].strip()
 
     for row in rows:
         try:
@@ -40,11 +45,13 @@ def extract_songs(week_text, year):
             all_chart_data.append({
                 "year": year,
                 "week": week_text,
+                "week_start": week_start,
+                "week_end": week_end,
                 "rank": int(rank),
                 "title": title,
                 "artist": artist,
                 "album": album,
-                "like_cnt" : like_cnt
+                "like_cnt": like_cnt
             })
 
         except:
@@ -56,7 +63,7 @@ try:
     # 1. 멜론 홈 진입 (필수)
     # -----------------------------
     driver.get("https://www.melon.com")
-    time.sleep(2)
+    time.sleep(1.5)
 
     # 멜론차트 클릭
     wait.until(EC.element_to_be_clickable(
@@ -68,12 +75,12 @@ try:
     wait.until(EC.element_to_be_clickable(
         (By.XPATH, '//*[@id="gnb_menu"]/ul[1]/li[1]/div/div/button/span'))
     ).click()
-    time.sleep(1)
+    time.sleep(0.7)
 
     wait.until(EC.element_to_be_clickable(
         (By.XPATH, '//*[@id="d_chart_search"]/div/h4[1]/a'))
     ).click()
-    time.sleep(1)
+    time.sleep(0.5)
 
     # -----------------------------
     # 연대 선택
@@ -82,7 +89,8 @@ try:
         (By.XPATH, '//*[@id="d_chart_search"]/div/div/div[1]/div[1]/ul/li[1]/span/label'))
     ).click()
 
-    year_list = ['2020','2021','2022','2023','2024','2025']
+    # year_list = ['2020','2021','2022','2023','2024','2025']
+    year_list = ['2021']
 
     for year in year_list:
         print(f"\n===== {year} 시작 =====")
@@ -93,9 +101,9 @@ try:
             "arguments[0].click();",
             wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, year_selector)))
         )
-        time.sleep(1)
-
-        for month in range(1, 13):
+        time.sleep(0.5)
+        # 월 선택
+        for month in range(9, 11):
             try:
                 month_xpath = f'//*[@id="d_chart_search"]/div/div/div[3]/div[1]/ul/li[{month}]/span/label'
                 driver.execute_script(
@@ -118,8 +126,8 @@ try:
                         week_xpath = f'//*[@id="d_chart_search"]/div/div/div[4]/div[1]/ul/li[{w_idx}]/span/label'
 
                         week_element = wait.until(EC.element_to_be_clickable((By.XPATH, week_xpath)))
-                        week_text = week_element.text
-
+                        # week_text = week_element.text
+                        # 주차 선택
                         driver.execute_script("arguments[0].click();", week_element)
 
                         # 주간차트 선택
@@ -136,14 +144,16 @@ try:
                             ))
                         )
 
-                        time.sleep(1.5)
-
+                        time.sleep(0.8)
+                        
+                        week_text = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "span.datelk"))).text
+                        
                         # 1~50위
                         extract_songs(week_text, year)
 
                         # 51~100위
                         driver.execute_script("movePage(2);")
-                        time.sleep(1.5)
+                        time.sleep(0.8)
 
                         extract_songs(week_text, year)
 
@@ -165,20 +175,20 @@ try:
         df_year = df_year[df_year['year'] == year]
 
         df_year = df_year.dropna(subset=['rank','title'])
-        df_year = df_year.drop_duplicates(subset=['year','week','rank'])
+        df_year = df_year.drop_duplicates(subset=['week','rank','title'])
 
-        df_year.to_csv(f"/Users/js/MMA/Melon_Music_Award/data/melon_{year}.csv", index=False, encoding='utf-8-sig')
+        df_year.to_csv(f"/Users/js/MMA/Melon_Music_Award/data/melon_{year}_ex.csv", index=False, encoding='utf-8-sig')
         print(f"🎉 {year} 저장 완료")
 
     # -----------------------------
     # 전체 저장
     # -----------------------------
-    df_all = pd.DataFrame(all_chart_data)
-    df_all = df_all.dropna(subset=['rank','title'])
-    df_all = df_all.drop_duplicates(subset=['year','week','rank'])
+    # df_all = pd.DataFrame(all_chart_data)
+    # df_all = df_all.dropna(subset=['rank','title'])
+    # df_all = df_all.drop_duplicates(subset=['year','week','rank'])
 
-    df_all.to_csv("/Users/js/MMA/Melon_Music_Award/data/melon_all_2020_2025.csv", index=False, encoding='utf-8-sig')
-    print("🔥 전체 데이터 저장 완료")
+    # df_all.to_csv("/Users/js/MMA/Melon_Music_Award/data/melon_all_2020_2025.csv", index=False, encoding='utf-8-sig')
+    # print("🔥 전체 데이터 저장 완료")
 
 finally:
     driver.quit()
